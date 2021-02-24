@@ -41,3 +41,6 @@ vignettes/*.pdf
 # os files
 .DS_Store
 *alias
+
+# docs html
+docs/*.html
