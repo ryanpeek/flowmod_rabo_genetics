@@ -1,0 +1,940 @@
+---
+title: "PCA: IBS Versions"
+author: "Ryan Peek"
+date: "*Updated: `r format(Sys.Date())`*"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_knit$set(root.dir = normalizePath("../"))
+
+suppressPackageStartupMessages({
+  library(tidyverse); 
+  library(viridis); 
+  library(plotly);
+  library(ggforce);
+  library(ggthemes)
+  #library(patchwork)
+})
+
+```
+
+# SNPs
+
+The IBS angsd method using all sites, so doesn't necessarily call a single SNP. 
+
+## Sierra Sites 
+
+Looking at the Sierra Sites (this does not include Feather Basin which is Sierra/Basin Range)
+
+### Sierra 100k
+
+```{r sierra1PCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra v1: PCA"}
+
+reads <- "100k"
+site <- "sierra"
+# a few other options: sierra_basin_100k (this is only RABO but includes FEA)
+# sierra_100k/50k (this is all sierras)
+# sierra_v2 (this is only minus stan and tuo)
+# sierra_v3 (this is the reg/unreg run minus deer crk, sfa, and tuo/stan)
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Filter outliers:
+to_rm <- c(which(annot$SampleID=="RAP-122"), # outlier SFY Spring (166),
+           which(annot$SampleID=="RAP-278"))#, # outlier Bear Missouri (13)
+           #which(grepl("^DEER-|^SFA-",annot$Locality))) # SFA/DEER CK samples
+covar<- covar[-c(to_rm),-c(to_rm)]
+annot <- annot[-c(to_rm),]
+
+# fix the Upper Feather Slate Creek Sample to Yuba:
+#which(annot$SampleID=="RAP1716")
+annot$HU_8_NAME[18] <- "Upper Yuba"
+#annot$HU_8_NAME[which(annot$SampleID=="RAP1716")]
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+## GGPLOTLY
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+)
+
+```
+
+```{r sierra1PCAplot, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra v1 static: PCA"}
+# static
+library(ggforce)
+library(ggthemes)
+ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                           color=quote(HU_8_NAME),
+                           text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+
+  geom_point(size=4, alpha=0.8) +
+  ggforce::geom_mark_circle(aes(group=HU_8_NAME), show.legend = F)+
+  theme_bw(base_family = "Roboto Condensed") +
+  #scale_color_grey("Locality") +
+  #scale_color_colorblind() +
+  scale_color_viridis_d("Locality", option = "D") +
+  scale_shape_discrete("Locality") +
+  ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+
+#ggsave(filename = "figs/pca_fea_thresh_locality_colorblind.png", width = 8, height = 5, units = "in", dpi=300)
+
+#ggsave(filename = "figs/pca_fea_thresh_locality_virD.png", width = 8, height = 5, units = "in", dpi=300)
+
+```
+
+### Sierra 100k v3
+
+This is the reg/unreg sites only. It excludes Deer Creek, SFA, TUO, and STAN samples.
+
+```{r sierra3PCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra v3: PCA"}
+
+reads <- "100k"
+site <- "sierra_v2"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Filter outliers:
+to_rm <- c(which(annot$SampleID=="RAP-122"), # outlier SFY Spring (166),
+           which(annot$SampleID=="RAP-278"))#, # outlier Bear Missouri (13)
+           #which(grepl("^DEER-|^SFA-",annot$Locality))) # SFA/DEER CK samples
+covar<- covar[-c(to_rm),-c(to_rm)]
+annot <- annot[-c(to_rm),]
+
+# fix the Upper Feather Slate Creek Sample to Yuba:
+slck <- which(annot$SampleID=="RAP1716")
+annot$HU_8_NAME[slck] <- "Upper Yuba"
+annot$HU_8_NAME[which(annot$SampleID=="RAP1716")]
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# PLOT
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+)
+
+```
+
+### Sierra 50k
+
+```{r sierra50PCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra v1: PCA"}
+
+reads <- "50k"
+site <- "sierra"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_",reads, "_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+# wait what!!?
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(Seq, .keep_all = T)
+
+# Filter outliers:
+to_rm <- c(which(annot$SampleID=="RAP-122"), # outlier SFY Spring (166),
+           which(annot$SampleID=="RAP-278"))#, # outlier Bear Missouri (13)
+           #which(grepl("^DEER-|^SFA-",annot$Locality))) # SFA/DEER CK samples
+covar<- covar[-c(to_rm),-c(to_rm)]
+annot <- annot[-c(to_rm),]
+
+# fix the Upper Feather Slate Creek Sample to Yuba:
+slck <- which(annot$SampleID=="RAP1716")
+annot$HU_8_NAME[slck] <- "Upper Yuba"
+annot$HU_8_NAME[which(annot$SampleID=="RAP1716")]
+
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 3
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# PLOT
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+)
+
+```
+
+### Sierra & Basin Range 100k
+
+```{r sierrabasinPCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra/Basin Range PCA"}
+
+reads <- "100k"
+site <- "sierra_basin"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Filter outliers:
+to_rm <- c(which(annot$SampleID=="RAP-122"), # outlier SFY Spring (166),
+           which(annot$SampleID=="RAP-278"))#, # outlier Bear Missouri (13)
+           #which(grepl("^DEER-|^SFA-",annot$Locality))) # SFA/DEER CK samples
+covar<- covar[-c(to_rm),-c(to_rm)]
+annot <- annot[-c(to_rm),]
+
+# fix the Upper Feather Slate Creek Sample to Yuba:
+slck <- which(annot$SampleID=="RAP1716")
+annot$HU_8_NAME[slck] <- "Upper Yuba"
+annot$HU_8_NAME[which(annot$SampleID=="RAP1716")]
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# plot
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("Sierra/Basin RABO: ", reads, " [",title,"]"))
+)
+
+```
+
+```{r staticplotsierrabasin100k, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra/Basin Range PCA static"}
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# static
+library(ggforce)
+library(ggthemes)
+ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                           color=quote(HU_8_NAME),
+                           text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+
+  geom_point(size=4, alpha=0.8) +
+  ggforce::geom_mark_circle(aes(group=HU_8_NAME), show.legend = F)+
+  theme_bw(base_family = "Roboto Condensed") +
+  #scale_color_grey("Locality") +
+  #scale_color_colorblind() +
+  scale_color_viridis_d("Locality", option = "D") +
+  scale_shape_discrete("Locality") +
+  ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+
+# PC's:
+pc1 <- 1
+pc2 <- 3
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# static
+ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                           color=quote(HU_8_NAME),
+                           text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+
+  geom_point(size=4, alpha=0.8) +
+  ggforce::geom_mark_circle(aes(group=HU_8_NAME), show.legend = F)+
+  theme_bw(base_family = "Roboto Condensed") +
+  #scale_color_grey("Locality") +
+  #scale_color_colorblind() +
+  scale_color_viridis_d("Locality", option = "D") +
+  scale_shape_discrete("Locality") +
+  ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+
+# PC's:
+pc1 <- 2
+pc2 <- 3
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# static
+ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                           color=quote(HU_8_NAME),
+                           text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+
+  geom_point(size=4, alpha=0.8) +
+  ggforce::geom_mark_circle(aes(group=HU_8_NAME), show.legend = F)+
+  theme_bw(base_family = "Roboto Condensed") +
+  #scale_color_grey("Locality") +
+  #scale_color_colorblind() +
+  scale_color_viridis_d("Locality", option = "D") +
+  scale_shape_discrete("Locality") +
+  ggtitle(paste0("Sierra RABO: ", reads, " [",title,"]"))
+
+```
+
+## NFA Watershed 100k
+
+```{r nfaPCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="MFA 100k: PCA"}
+
+reads <- "100k"
+site <- "nfa"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+#plot
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("NFA RABO: ", reads, " [",title,"]"))
+)
+```
+
+## MFA Watershed 100k
+
+```{r mfaPCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="MFA 100k: PCA"}
+
+reads <- "100k"
+site <- "mfa"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+#plot
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("MFA RABO: ", reads, " [",title,"]"))
+)
+```
+
+## MFA Hydro Sites
+
+Looking at the MFA Sites in hydropeaking reach only at 100k.
+
+### MFA Hydro 100k v1
+
+```{r mfahydro1PCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="MFA Hydro v1: PCA"}
+
+reads <- "100k"
+site <- "mfa_hydro"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# read covar file
+#covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k.covar")
+#covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+# title
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("MFA Hydro: ", reads, " [",title,"]"))
+)
+```
+
+```{r mfahydro1PCAplot, warning=FALSE, echo=F, eval=F, message=FALSE, fig.cap="MFA Hydro v1: PCA static"}
+
+# static
+library(ggforce)
+library(ggthemes)
+ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                           color=quote(River), shape=quote(HU_12_NAME),
+                           text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+
+  geom_point(size=4, alpha=0.8) +
+  ggforce::geom_mark_circle(aes(group=River), show.legend = F)+
+  theme_bw(base_family = "Roboto Condensed") +
+  #scale_color_grey("Locality") +
+  #scale_color_colorblind() +
+  scale_color_viridis_d("Locality", option = "D") +
+  scale_shape_discrete("Locality") +
+  ggtitle(paste0("MFA Hydro: ", reads, " [",title,"]"))
+
+#ggsave(filename = "figs/pca_fea_thresh_locality_colorblind.png", width = 8, height = 5, units = "in", dpi=300)
+
+#ggsave(filename = "figs/pca_fea_thresh_locality_virD.png", width = 8, height = 5, units = "in", dpi=300)
+
+```
+
+### MFA Hydro 100k v2
+
+```{r mfahydro2PCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="MFA Hydro v2: PCA"}
+
+reads <- "100k"
+site <- "mfa_hydro2"
+siteclst <- "mfa_hydro"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# read covar file
+#covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k.covar")
+#covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",siteclst,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+# title
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("MFA Hydro: ", reads, " [",title,"]"))
+)
+
+```
+
+## Feather Watershed 100k
+
+```{r feaPCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Feather 100k: PCA"}
+
+reads <- "100k"
+site <- "fea"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+# title
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size = 9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("Feather RABO: ", reads, " [",title,"]"))
+)
+
+```
+
+## Yuba
+
+### Middle Yuba Watershed 100k
+
+```{r mfyPCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="MFY 100k: PCA"}
+
+reads <- "100k"
+site <- "mfy"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("MFY RABO: ", reads, " [",title,"]"))
+)
+```
+
+### Yuba 100k v1
+
+```{r yubPCAplotly, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Yuba 100k: PCA"}
+
+reads <- "100k"
+site <- "yuba"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("Yuba RABO: ", reads, " [",title,"]"))
+)
+```
+
+
+### Yuba 100k v2
+
+```{r yub2PCAplotly, warning=FALSE, echo=FALSE, eval=F, message=FALSE, fig.cap="Yuba v2: PCA"}
+
+reads <- "100k"
+site <- "yuba2"
+siteclst <- "yuba"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",siteclst,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("RABO: ", reads, " [",title,"]"))
+)
+
+```
+
+
+
+
+## Feather
+
+### Feather 100k
+
+```{r feaPCAplotly100k, warning=FALSE, echo=FALSE, eval=F, message=FALSE, fig.cap="MFY 100k: PCA"}
+
+reads <- "100k"
+site <- "fea"
+siteclst <- "fea"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",siteclst,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("FEA RABO: ", reads, " [",title,"]"))
+)
+```
+
+
+```{r fea2PCAplotly, warning=FALSE, echo=FALSE, eval=F, message=FALSE, fig.cap="FEA2 100k: PCA"}
+
+reads <- "100k"
+site <- "fea2"
+siteclst <- "fea"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",siteclst,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$Locality)
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+ggplotly(p = 
+           ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2), color=quote(River), text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+           geom_point(size=4, alpha=0.8) + 
+           theme_bw(base_size=9) +
+           scale_color_viridis_d() + 
+           ggtitle(paste0("FEA2 RABO: ", reads, " [",title,"]"))
+)
+```

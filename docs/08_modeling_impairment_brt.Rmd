@@ -1,0 +1,502 @@
+---
+title: "Modeling Hydrologic Impairment & Genomic Variation"
+author: "Ryan Peek"
+date: '`r format(Sys.time(), "%Y-%b-%d")`'
+output:
+  html_document:
+    fig_caption: yes
+    highlight: tango
+    theme: flatly
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+knitr::opts_knit$set(root.dir = normalizePath("../"))
+
+# load libraries
+suppressMessages({
+  library(tidyverse);
+  library(ggthemes);
+  library(lubridate);
+  library(magrittr);
+  library(huxtable);
+  library(viridis);
+  library(sf)
+})
+
+options(scipen = 12) # to avoid issues with paste functions, & joining on subsample number
+```
+
+# Boosted Regression Tree Models of Genomics and Hydrologic Impairment
+
+Here we use the R packages gbm (Ridgeway et al. 2015) and dismo (Hijmans et al 2016) to fit BRT models explaining variation in BMI metrics using the set of hydrologic variables described above. 
+
+BRT models are well suited for exploring relationships within large, complex ecological datasets because they do not require normality, nor constrain the data into linear relationships. They can accept variables that are numeric, categorical, or censored (De'ath 2007). They also implicitly model complex interactions, and are better able to handle collinearity between predictors (Brown et al 2012). They are within the classification/regression tree family, but their predictive performance is dramatically improved through stochastic gradient boosting (a machine-learning method). Simple regression trees group observations of a response variable through a series of bivariate splits at threshold values of explanatory variables. Boosted models iteratively construct many trees (>1000), each time using a subset of the training dataset (introducing the stochasticity), and placing greater weight on previously mis-classified observations. There are several meta-parameters that must be defined by the user when fitting BRT models, and our methods are discussed below.
+
+- In order to reduce over-fitting, the learning rate (also known as the shrinking rate) was set to 0.001. 
+- Stochastic gradient boosting was utilized as this reduces prediction error (De’ath 2007), and due to our relatively small sample size the fraction of training data sampled to build each tree was 0.75, the top end of the range recommended by Brown et al. (2012). 
+- Tree complexity was set at two to allow for two-way interaction effects. 
+- The minimum number of observation required in the final nodes, or leaves, of each tree was three. (this had to be edited in the gbm.step() code taken from Elith & Leathwick's Appendix S3, may need to be edited in dismo package if we transition to those functions instead)
+- A tenfold cross-validation (CV) technique allowed us to determine the number of trees at which prediction error was minimized (De’ath 2007 cites Buhlmann and Yu 2003), as well as to evaluate model performance (predictive error).  
+
+# BRT Models
+
+First run a simple model, with regulation, nsites, drainage density, etc. The two most important variables for F<sub>ST</sub> that were part of this model were **`reg`** and **`stream_distance`** between site pairs.
+
+## BRT Model 1: F<sub>ST</sub> vs. Variables
+
+```{r gbm1, echo=F, warning=FALSE, messages=FALSE}
+
+library(gbm)
+library(dismo)
+library(DT)
+
+# I edited gbm.step code to allow modification of n.minobsinnode; needs a value < default of 10 to get code to run w/ our small sample size; this must satisfy nTrain*bag.fraction <= n.minobsinnode
+source("scripts/functions/My.gbm.step.R")
+#source("scripts/functions/My.gbm.fixed.R")
+#source("scripts/functions/My.gbm.simplify.R") 
+source("scripts/functions/brt.functions.R")
+
+# Build model using code from Elith & Leathwick
+set.seed(33)  # set seed to get repeatable model              
+
+# load the dataset
+load("data_output/brt_mod_30_sites_dat.rda")
+
+# make reg numeric/factor
+dfm1$reg_s <- as.numeric(as.factor(dfm1$reg))
+dfm1$regtype_s <- as.numeric(as.factor(dfm1$regType))
+
+str(dfm1)
+names(dfm1)
+
+# subset to only model data:
+dfm2 <- dplyr::select(dfm1, c(13,9,13,14,17:19,21,27)) %>%
+  as.data.frame
+summary(dfm2)
+str(dfm2)
+
+gbm1 <-
+  My.gbm.step(gbm.y = 1, #max.trees = 1e4,
+              gbm.x = c(2:ncol(dfm2)),
+              data=dfm2,
+              family="gaussian",
+              learning.rate=0.001,
+              tree.complexity=3,
+              bag.fraction = 0.75,
+              n.minobsinnode = 3,
+              plot.folds=F,
+              verbose=F)
+
+relative.influence(gbm1,sort. = T)
+par(mar=c(5,7.7,3,1), las=2) # make labels perpendicular and wider plot
+summary(gbm1) # simple plot
+
+# permutation test
+srelvars<-summary(gbm1, method=permutation.test.gbm, main="Permutation Test", family="Roboto Condensed")
+
+# bar plot of Relative influence
+relvars_ri<-summary(gbm1, method=relative.influence,
+                    main="Relative Influence", 
+                    family="Roboto Condensed", plotit = F)
+barplot(rev(relvars_ri$rel.inf), horiz=T, col=rev(gray.colors(22)), names.arg=rev(relvars_ri$var))
+
+
+# make list of names for plot:
+relvars_ri$var
+ri_names <- c("Regulation Type", "Mean Distance (km)", expression(paste("Diversity ", theta[Delta])), 
+              "Elevation (m)", "Drainage Area (km2)","No. Samples", "Stream Order")
+
+# Printable Plot
+png(filename = "figs/fig_03b_relinf_brt_simple_v2_notitle.png", width = 3.42, height= 2.7, units = "in", res = 600)
+par(mar=c(5,7.9,3,1), las=2)
+barplot(rev(relvars_ri$rel.inf), 
+        names.arg = rev(ri_names), col=rev(gray.colors(22)), 
+        horiz = TRUE, angle = 30, xlab = "Relative influence",
+        cex.names = 1, family="Helvetica")
+title(expression("Relative Influence of Variables on F"["ST"]), family="Roboto Condensed")
+dev.off()
+
+save(relvars_ri, ri_names, file = "data_output/brt_simple_3b_fst_regtype.rda")
+
+
+
+```
+
+Overall this shows regulation and distance are key factors in explaining the variation observed in F<sub>ST</sub>.
+
+Now let's join and add some additional watershed data into these models using the HUC12 as the base size.
+
+## BRT Model 2: Healthy Watersheds & Adding Complexity
+
+
+### [Healthy Watersheds](https://www.epa.gov/sites/production/files/2015-11/documents/ca_hw_report_111213_0.pdf)
+Use the data from the Report on the Status and Vulnerability of Watershed Health in CA, in conjunction with the Observed vs. Expected data from USGS to assess what parameters and variables are most important within a genomic context. Also add in the Seasonality vs. Predictability approach (see Tonkin et al. 2016), currently avail for only the mainstem rivers in YUB and AMER watersheds.
+
+Now we have all these other pieces to look at. So let's run a big model and see what happens.
+
+```{r gbm2, echo=T, eval=T}
+
+# load functions
+source(file = "scripts/functions/brt.functions.R")
+source(file = "scripts/functions/My.gbm.step.R")
+
+# fix up the data 
+load(file="data_output/hw_frog_mod_dat.rda")
+
+# drop duplicates
+mod_dat <- mod_dat %>% 
+  rename(REG=REG.x) %>% dplyr::select(-REG.y)
+
+# drop broken stuff and merge updated stuff
+mod_dat <- mod_dat %>% 
+  dplyr::select(-geometry, -Wint_prec_, -R_pct_de_2) %>% 
+  mutate(REG=if_else(REG=="R",1,0),
+         fst_mean_adj=(fst_mean/(1-fst_mean))) #
+
+# select variables 
+mod_dat <- mod_dat %>% dplyr::select(Locality, fst_mean, fst_mean_adj, REG, Tdiff, mean_main_km, mean_km, Rds_mi_mi2:HWI_vuln) %>% 
+  as.data.frame # NA's, drop?
+
+str(mod_dat)
+
+## Add Regulation TYPE using mutate case_when
+mod_dat <- mod_dat %>% mutate(
+  regType = case_when(
+    grepl("^NFA|NFY$", x = Locality) ~ "Unregulated",
+    grepl("^MFA|^NFMFA", x = Locality) ~ "Hydropeaking",
+    grepl("^RUB|BEAR|MFY|SFY|SFA", x = Locality) ~ "Bypass"
+  )
+)
+
+mod_dat$regType <- factor(mod_dat$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+mod_dat$regType_s <- as.numeric(mod_dat$regType)
+
+mod_dat <- select(mod_dat, -REG, -regType) # drop REG for regtype
+str(mod_dat)
+
+# MODEL  ---------------------------------------
+
+set.seed(33)  # set seed to get repeatable model              
+
+gbm2 <- My.gbm.step(data=mod_dat,
+                    gbm.x = 4:ncol(mod_dat),
+                    gbm.y = 3, 
+                    family = "gaussian",
+                    tree.complexity = 2, # 2nd order interactions
+                    learning.rate = 0.001, # 0.001: lower learning rate/shrinking reduces prob of over-fit
+                    bag.fraction = 0.7,   # recommended in Elith / Brown as top end of value
+                    n.minobsinnode = 3, 
+                    verbose = F)
+
+
+# EVALUATE ------------------------
+par(mar=c(5,6,3,1), las=2) # make labels perpendicular
+gbm2RI<-as.data.frame(summary(gbm2, plotit = T))
+rownames(gbm2RI) <- NULL
+
+# show the relative influence
+relative.influence(gbm2, sort. = T)
+
+# pull out RI only
+relvars_ri<-summary(gbm2, method=relative.influence, 
+                    main="Relative Influence", family="Roboto Condensed", plotit = F)
+
+# filter to rel inf greater than 3
+ri_select <- relvars_ri %>% filter(rel.inf > 3)
+
+# refactor to drop unused levels
+ri_select$var <- factor(ri_select$var) # variable names
+
+# PLOTS
+par(mar=c(5,7,3,1), las=2) # make labels perpendicular
+srelvars<-summary(gbm2, method=permutation.test.gbm, main="Permutation Test", family="Roboto Condensed", plotit = F)
+
+# bar plot of influence
+# make list of names for plot
+ri_select$var
+
+ri_names <- c("River distance (km)", "Regulation Type", 
+              "% Developed (low intens.)","Canals",
+              "Mean Mainstem Dist (km)", expression(paste("Genomic Diversity ", theta[Delta])), "Applied Water", "% Intermit. Stream")
+
+# plot
+#png(filename = "figs/relinf_brt_wavelet.png", width = 8, height = 5, units = "in", res = 300)
+par(mar=c(5,11,3,1), las=2)
+barplot(rev(ri_select$rel.inf), 
+        names.arg = rev(ri_names), col=rev(gray.colors(22)), 
+        horiz = TRUE, xlab = "relative influence",
+        cex.names = 1, family="Roboto Condensed")
+title(expression("Relative Influence of Variables on F"["ST"]), family="Roboto Condensed")
+#dev.off()
+
+# Top Vars
+topn3 = sum((summary(gbm2, plotit=FALSE)$rel.inf)>=5)
+topvar3 = as.character(summary(gbm2, plotit=FALSE)$var[1:topn3])
+ 
+par(mar=c(5,12,3,3))
+barplot(rev(summary(gbm2, plotit=FALSE)$rel.inf[1:topn3]),
+        horiz = TRUE, col = viridis(topn3),
+        names = rev(summary(gbm2, plotit=FALSE)$var[1:topn3]),
+        xlab = "Relative influence",
+        las=1,
+        main=paste0("Relative Influence: \nTop ",topn3," Vars"), family="Roboto Condensed")
+ 
+
+# TABLE---------------
+
+library(DT)
+DT::datatable(gbm2RI, caption=htmltools::tags$caption(
+                style = 'caption-side: bottom; text-align: center;',
+                htmltools::em('Table 1. '),
+                htmltools::em('Relative Influence for Full Model')),
+              colnames = c("Variables"=2, "Relative Influence"=3)) %>%
+  formatStyle('Relative Influence',
+              color = styleInterval(c(2,5), c('#440154FF', '#21908CFF', '#FDE725FF')),
+              backgroundColor = styleInterval(c(2,5), c('gray', 'yellow', 'forestgreen'))) %>% formatRound('Relative Influence', 3)
+
+
+```
+
+#### Explanation for model output:
+
+ - `mean total deviance = 0.006`  _deviance in response variable available to explain_
+ -`mean residual deviance = 0.0`  _deviance remaining after fitting model (using training data to both build and test)_
+ - `estimated cv deviance = 0.003; se = 0.002` _estimated deviance remaining (predictive error?) calculated through cross-validation; mean (and se) of error measured between predicted and observed values in each held-out sample. Indicates model accuracy_
+ - `training data correlation = 0.967`  _correlation between pred and obs values (training dataset); value of 1 = perfect fit_
+ - `cv correlation =  0.784 ; se = 0.199`  _correlation between pred and obs values of held-out samples. Indicates model bias_
+
+
+## BRT Model 3: Wavelet and Colwells
+
+Seasonality and predictability play a large role in hydrology and flow regimes. Using wavelet & Colwell's analysis as per Tonkin et al. 2017.
+
+ - Define **Seasonality** as Tonkin et al. 2017: *"We used a definition of seasonality of environmental phenomena based on Lieth (1974): 'Seasonality is the occurrence of certain obvious biotic and abiotic events or groups of events within a definite limited period or periods of the astronomic (solar, calendar) year.' Essentially, this represents the degree to which within-year conditions are distinct."*
+ 
+ - Define **Predictability** (Tonkin et al 2017): *"as the regularity of recurrence of the within cycle (e.g., annual) distribution of events across multiple cycles"*.
+ 
+
+So *seasonality* represents intra-annual patterns (and includes contingency), whereas *predictability* represents inter-annual patterns of seasonality over multiple years.
+
+```{r prepModel3, echo=F, eval=T}
+
+# load functions
+source(file = "scripts/functions/brt.functions.R")
+source(file = "scripts/functions/My.gbm.step.R")
+
+# fix up the data 
+load(file="data_output/hw_frog_mod_dat.rda")
+
+# load the predict/seasonality data:
+load(file = "models/wavelet_colwell_combined.rda")
+
+## PREP MOD DATA:
+
+load("data_output/mod_theta100k_fst_dists_yub_amer_bear.rda")
+
+dfm <- mod_dat_nhd %>% 
+  rename(nhd_da=NHD_Tot_DA_sqkm, nhd_order=NHD_StreamOrder) %>% 
+  mutate(reg=if_else(REG=="R",1,0),
+         Locality_id=as.numeric(as.factor(Locality))) %>% 
+  as.data.frame()
+
+### PREP LOCALITY DATA
+# view dataframe of locality and id
+(locality_names <- dfm %>% distinct(Locality,.keep_all = T) %>% dplyr::select(Locality, Locality_id, reg) %>% arrange(Locality_id) %>% dplyr::select(Locality, reg))
+
+# drop duplicates
+mod_dat <- mod_dat %>% 
+  rename(REG=REG.x) %>% dplyr::select(-REG.y)
+
+# drop broken stuff and merge updated stuff
+mod_dat <- mod_dat %>% dplyr::select(-geometry, -Wint_prec_, -R_pct_de_2) %>% 
+  mutate(REG=if_else(REG=="R",1,0),
+         fst_mean_adj=(fst_mean/(1-fst_mean))) %>% 
+  dplyr::select(Locality, fst_mean, fst_mean_adj, REG, Tdiff, mean_main_km, mean_km, Rds_mi_mi2:MP_metric) %>% as.data.frame # NA's, drop?
+
+mod_dat$river <- str_extract(mod_dat$Locality, "[A-Z]+")
+mod_dat <- dplyr::select(mod_dat, river,Locality:mean_km,HWI_cond:HWI_vuln)
+
+# update locality names with river/site
+locality_names$river <- str_extract(locality_names$Locality, "[A-Z]+")
+locality_names <- locality_names %>% rename(impaired=reg) # rename reg col, in "impaired watershed"
+
+# join with seasonality/predict. data
+combined_df2 <- left_join(locality_names, combined_df, by=c("river")) %>% 
+  group_by(river, Locality, reg) %>% 
+  summarize(PowerAvg=mean(maxPowerAvg, na.rm=T),
+         Period=mean(maxPeriod),
+         MP_mean = mean(MP))
+  
+# join back to mod_dat by Locality, rm most of cols
+mod_dat2 <- left_join(mod_dat, combined_df2, by=c("Locality","river")) %>% 
+  dplyr::select(river, Locality, everything()) %>% 
+  mutate(reg=as.factor(reg))
+
+# filter to reg (modern) seasonality/colwell
+mod_dat3 <- mod_dat2 %>% 
+  filter(!(river %in% c("BEAR","SFY","MFY","SFA","MFA","RUB") & reg=="N"))
+
+# filter to reg (modern) seasonality/colwell
+mod_dat4 <- mod_dat2 %>% 
+  filter(!(river %in% c("BEAR","SFY","MFY","SFA","MFA","RUB") & reg=="Y"))
+
+```
+
+### BRT3A: Impaired Data
+
+Now actually run the model. First model is using seasonality and predictability values calculated for modern impairment and regulation (where dams exist). These have been averaged over multiple gage readings for multiple sets of years, but grouped to a given river.
+
+```{r gbm3, echo=T, eval=T}
+
+set.seed(33)  # set seed to get repeatable model              
+
+gbm3 <- My.gbm.step(data=mod_dat3,
+                    gbm.x = 5:ncol(mod_dat3),      
+                    gbm.y = 4, 
+                    family = "gaussian",
+                    tree.complexity = 2, # 2nd order interactions
+                    learning.rate = 0.001, # 0.001: lower learning rate/shrinking reduces prob of over-fit
+                    bag.fraction = 0.75,   # recommended in Elith / Brown as top end of value
+                    n.minobsinnode = 3,
+                    verbose = F)
+
+
+# EVALUATE ------------------------
+par(mar=c(5,6,3,1), las=2) # make labels perpendicular
+gbm3RI<-as.data.frame(summary(gbm3, plotit = F))
+rownames(gbm3RI) <- NULL
+
+# show the relative influence
+relative.influence(gbm3, sort. = T)
+
+# pull out RI only
+relvars_ri<-summary(gbm3, method=relative.influence, 
+                    main="Relative Influence", family="Roboto Condensed", plotit = F)
+
+# filter to rel inf greater than 3
+ri_select <- relvars_ri %>% filter(rel.inf > 3)
+
+# refactor to drop unused levels
+ri_select$var <- factor(ri_select$var) # variable names
+
+# PLOTS
+par(mar=c(5,7,3,1), las=2) # make labels perpendicular
+srelvars<-summary(gbm3, method=permutation.test.gbm, main="Permutation Test", family="Roboto Condensed", plotit = F)
+
+# bar plot of influence
+# make list of names for plot
+ri_select$var
+
+ri_names <- c("Flow Predictability (MaxPower)", "River distance (km)", expression(paste("Genomic Diversity ", theta[Delta])), "REG", "Mainstem dist (km)", "HWI Health", "Seasonality (M/P)")
+
+# plot
+#png(filename = "figs/relinf_brt3_impaired_wavelet.png", width = 8, height = 5, units = "in", res = 300)
+par(mar=c(5,12,3,1), las=2)
+barplot(rev(ri_select$rel.inf), 
+        names.arg = rev(ri_names),
+        col=viridis(length(ri_names),option = "A", direction = -1),
+        horiz = TRUE, xlab = "relative influence",
+        cex.names = 1, family="Roboto Condensed")
+title(expression("Current (Impaired) Flows: Relative Influence of Variables on F"["ST"]), family="Roboto Condensed")
+#dev.off()
+
+# TABLE---------------
+
+library(DT)
+DT::datatable(gbm3RI, caption=htmltools::tags$caption(
+                style = 'caption-side: bottom; text-align: center;',
+                htmltools::em('Table 1. '),
+                htmltools::em('Relative Influence for Full Model')),
+              colnames = c("Variables"=2, "Relative Influence"=3)) %>%
+  formatStyle('Relative Influence',
+              color = styleInterval(c(2,5), c('#440154FF', '#21908CFF', '#FDE725FF')),
+              backgroundColor = styleInterval(c(2,5), c('gray', 'yellow', 'forestgreen'))) %>% formatRound('Relative Influence', 3)
+
+```
+
+Based on these results, it looks like Flow Power (or Predictability) is the the strongest factor for explaining variance in F<sub>ST</sub>.
+
+### BRT3B: Unimpaired Data
+
+Now model using seasonality and predictability values calculated from historical flow data (pre-dam). These have been averaged over multiple gage readings for multiple sets of years, but grouped to a given river.
+
+```{r gbm4, echo=T, eval=T}
+
+# drop REG from these data since all are assumed to be "UNREG"
+mod_dat4 <- mod_dat4 %>% dplyr::select(-REG, -reg)
+
+set.seed(33)  # set seed to get repeatable model              
+
+gbm4 <- My.gbm.step(data=mod_dat4,
+                    gbm.x = 5:ncol(mod_dat4),      
+                    gbm.y = 4, 
+                    family = "gaussian",
+                    tree.complexity = 2, # 2nd order interactions
+                    learning.rate = 0.001, # 0.001: lower learning rate/shrinking reduces prob of over-fit
+                    bag.fraction = 0.75,   # recommended in Elith / Brown as top end of value
+                    n.minobsinnode = 3,
+                    verbose = F)
+
+
+# EVALUATE ------------------------
+par(mar=c(5,6,3,1), las=2) # make labels perpendicular
+gbm4RI<-as.data.frame(summary(gbm4,plotit = F))
+rownames(gbm4RI) <- NULL
+
+# show the relative influence
+relative.influence(gbm4, sort. = T)
+
+# pull out RI only
+relvars_ri4<-summary(gbm4, method=relative.influence,
+                   main="Relative Influence", family="Roboto Condensed",plotit = F)
+
+# filter to rel inf greater than 3
+ri_select4 <- relvars_ri4 %>% filter(rel.inf > 3)
+
+# refactor to drop unused levels
+ri_select4$var <- factor(ri_select4$var) # variable names
+
+# PERMUTATION PLOT
+# par(mar=c(5,7,3,1), las=2) # make labels perpendicular
+# srelvars<-summary(gbm4, method=permutation.test.gbm, main="Permutation Test", family="Roboto Condensed")
+
+# bar plot of influence
+# make list of names for plot
+ri_select4$var
+
+ri_names4 <- c("River distance (km)","Seasonality (M/P)", 
+              "Flow Predictability (MaxPower)",
+              expression(paste("Genomic Diversity ",theta[Delta])),
+              "HWI Vulnerability", "HWI Health", 
+              "Mainstem dist (km)", "HWI Condition")
+
+# plot
+#png(filename = "figs/relinf_brt4_unimpaired_wavelet.png", width = 8, height = 5, units = "in", res = 300)
+par(mar=c(5,12,3,1), las=2)
+barplot(rev(ri_select4$rel.inf), 
+        names.arg = rev(ri_names4),
+        col=viridis(length(ri_names4),option = "A", direction = -1),
+        horiz = TRUE, xlab = "relative influence",
+        cex.names = 1, family="Roboto Condensed")
+title(expression("Historical (Unimpaired) Flows: Relative Influence of Variables on F"["ST"]), family="Roboto Condensed")
+#dev.off()
+
+# TABLE---------------
+
+library(DT)
+DT::datatable(gbm4RI, caption=htmltools::tags$caption(
+                style = 'caption-side: bottom; text-align: center;',
+                htmltools::em('Table 1. '),
+                htmltools::em('Relative Influence for Full Model')),
+              colnames = c("Variables"=2, "Relative Influence"=3)) %>%
+  formatStyle('Relative Influence',
+              color = styleInterval(c(2,5), c('#440154FF', '#21908CFF', '#FDE725FF')),
+              backgroundColor = styleInterval(c(2,5), c('gray', 'yellow', 'forestgreen'))) %>% formatRound('Relative Influence', 3)
+
+```
+
+Based on these results, it looks like River Distance is the strongest variable associated with F<sub>ST</sub>. This is an interesting switch. Furthermore Seasonality becomes a stronger predictor, over Flow Power (or Predictability), which implies seasonal patterns (such as the snowmelt recession) is a key component for historical patterns of connectivity.
+
+
