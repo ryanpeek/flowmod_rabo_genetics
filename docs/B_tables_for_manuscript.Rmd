@@ -1,0 +1,38 @@
+---
+title: "tables"
+author: "Ryan Peek"
+date: 'Updated `r format(Sys.time(), "%Y-%b-%d")`'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressPackageStartupMessages({
+  library(tidyverse);
+  library(here)
+  })
+```
+
+
+## Table 01
+
+Samples and Sample Sites.
+
+```{r}
+library(xtable)
+library(kableExtra)
+
+# ---- Read table in
+samps_table <- read_csv(here("data_output/Table_01_samplesites_samples.csv"))
+#samps_table <- read_csv("data_output/samplesites_Table1.csv")
+samps_table <- samps_table %>% select(Locality, SiteID, river:n_retained) %>% 
+  arrange(SiteID)
+
+# table
+knitr::kable(samps_table, format="latex", booktabs=T, digits = 3,
+             col.names = c("Locality","Site ID", "River", "Watershed", "Regulation Type", 
+                           "Lat.", "Long.", "Elev. (m)", "NHD Stream Order", "NHD Total Drainage Area (sq.km)", "n initial", "n retained"), caption = "Sampling and locality information for population genomic analysis of R. boylii in the Yuba, Bear, and American Watersheds in the nothern Sierra Nevada of California, USA. The number of individuals (n) is given for the initial number sequenced per site and the number of individuals that were retained after filtering across the 8,533 baits.") %>% # , 
+  kable_styling(latex_options = c("scale_down"))
+
+```
+

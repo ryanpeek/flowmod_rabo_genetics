@@ -1,0 +1,1316 @@
+---
+title: "Figs for manuscript: River Reg"
+author: "Ryan Peek"
+date: 'Updated `r format(Sys.time(), "%Y-%b-%d")`'
+output:
+  html_document:
+    code_folding: hide
+    fig_caption: yes
+    highlight: tango
+    theme: flatly
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+knitr::opts_knit$set(root.dir = normalizePath("../"))
+
+# load libraries
+suppressMessages({
+  library(tidyverse);
+  library(lubridate);
+  library(magrittr);
+  library(huxtable);
+  library(sf);
+  library(ggthemes);
+  library(ggrepel)
+  #library(maptools);
+  #library(riverdist);
+  #library(albersusa)
+})
+
+options(scipen = 12) # to avoid issues with paste functions, & joining on subsample number
+```
+
+<br>
+<br>
+
+# Fig 01: Map of sites
+
+See script `scripts/figure_01a_map.R`
+
+```{r ggplotMap, echo=F, eval=T}
+
+knitr::include_graphics(paste0(here::here(),"/figs/fig_01A_study_area_map_inset_col.png"))
+
+```
+
+
+# Fig 02-03: Flows
+
+### Load Flow Data
+
+See the `data_01_get_USGS_dv_flow.R` script to see how these data were aggregated from USGS data.
+
+```{r load_flow_data, eval=F, echo=F}
+# source("scripts/functions/f_doy.R")
+# source("scripts/functions/f_dv_facet_zoom.R")
+# # mfy
+# load("data/flows/MFY_dv_USGS_11408880_1968_2016.rda")
+# mfy <- filename %>% filter(WY>1980); rm(filename)
+# # load("data/flows/MFY_dv_CDEC_ORH_2000_2017.rda")
+# # mfy <- mfy_dv; rm(mfy_dv)
+# #dv_zoom(mfy, "MFY", scalelog = T, zoomYr = 2016)
+# 
+# # sfy
+# # load("data/flows/SFY_dv_CDEC_JBR_1998-2017.rda")
+# # sfy <- SFY_dv; rm(SFY_dv)
+# # sfy <- sfy %>% rename(flow_cfs=flow_avg_cfs)
+# load("data/flows/SFY_dv_USGS_11414250_1965_2016.rda")
+# sfy <- filename %>% filter(WY>1980); rm(filename)
+# #dv_zoom(sfy, "SFY", scalelog = T, zoomYr = 2016)
+# 
+# # nfy
+# load("data/flows/NFY_dv_USGS_11413000_1930_2017.rda")
+# nfy <- filename %>% filter(WY>1980); rm(filename)
+# #dv_zoom(nfy, "NFY", scalelog = T, zoomYr = 2016)
+# 
+# # bear
+# #load("data/flows/BEAR_dv_USGS_11422500_1965_2016.rda") # below rollins
+# load("data/flows/BEAR_dv_USGS_11421790_1965_2016.rda") # below dutch flat 
+# bear <- filename %>% filter(WY>1980); rm(filename)
+# #dv_zoom(bear, "BEAR", scalelog = T, zoomYr = 2016)
+# 
+# # mfa_dv
+# load("data/flows/MFA_dv_USGS_11433300_1964_2016.rda")
+# mfa <- filename %>% filter(WY>1980); rm(filename)
+# #dv_zoom(mfa, "MFA", scalelog = T, zoomYr = 2016)
+# 
+# # mfa_hv
+# load("data/flows/MFA_hv_CDEC_OXB_1997-2017.rda")
+# ggplot() + 
+#       geom_line(data=MFA_hv, aes(x=datetime, y=flow_cfs), color="#D55E00") +
+#       scale_y_log10(labels = scales::comma) + 
+#       theme_bw(base_family = "Roboto Condensed")+
+#       ylab("Discharge (cfs)") + xlab("") +
+#       ggtitle(paste0("MFA",": USGS"," (", 
+#                      length(unique(lubridate::year(MFA_hv$datetime)))," years)")) +
+#       ggforce::facet_zoom(x = MFA_hv$WY == 2014, shrink=T)
+# 
+# ggsave(filename = "figs/fig_IV_discharge_MFA_facetzoom.png", width = 9, height= 6, units="in", dpi=300)
+# 
+# 
+# # nfa_dv
+# load("data/flows/NFA_dv_USGS_11427000_1941_2017.rda")
+# nfa <- filename %>% filter(WY>1980); rm(filename)
+# #dv_zoom(nfa, "NFA", scalelog = T, zoomYr = 2014)
+# 
+# # nfa_iv
+# load("data/flows/NFA_iv_USGS_updated_2017-02-22.rda")
+# NFA_iv <- add_WYD(NFA_iv, datecolumn = "datetime")
+# ggplot() + 
+#       geom_line(data=NFA_iv, aes(x=datetime, y=flow_cfs), color="#56B4E9") +
+#       scale_y_log10(labels = scales::comma) + 
+#       theme_bw(base_family = "Roboto Condensed")+
+#       ylab("Discharge (cfs)") + xlab("") +
+#       ggtitle(paste0("NFA",": USGS"," (", 
+#                      length(unique(lubridate::year(NFA_iv$datetime)))," years)")) +
+#       ggforce::facet_zoom(x = NFA_iv$WY == 2014, shrink=T)
+# 
+# ggsave(filename = "figs/fig_IV_discharge_NFA_facetzoom.png", width = 9, height= 6, units="in", dpi=300)
+# 
+# # rub_dv
+# load("data/flows/RUB_dv_USGS_11433200_1964_1984.rda")
+# rub <- filename %>% filter(WY>1965); rm(filename)
+# #dv_zoom(rub, "RUB", scalelog = T, zoomYr = 1972)
+# 
+# # rub_iv
+# load("data/flows/RUB_iv_PCWA_2009-2016.rda")
+# RUB_iv <- add_WYD(RUB_iv, datecolumn = "datetime")
+# ggplot() + 
+#       geom_line(data=RUB_iv, aes(x=datetime, y=flow_cfs), color="#E69F00") +
+#       scale_y_log10(labels = scales::comma) + 
+#       theme_bw(base_family = "Roboto Condensed")+
+#       ylab("Discharge (cfs)") + xlab("") +
+#       ggtitle(paste0("RUB",": USGS"," (", 
+#                      length(unique(lubridate::year(RUB_iv$datetime)))," years)")) +
+#       ggforce::facet_zoom(x = RUB_iv$WY == 2014, shrink=T)
+# 
+# ggsave(filename = "figs/fig_IV_discharge_RUB_facetzoom.png", width = 9, height= 6, units="in", dpi=300)
+
+```
+
+### 02: Generate Mean Annual Flows
+
+```{r create_ann_flow, eval=F, echo=F}
+
+# need to add site name first
+# then combine with bind_rows, then...
+
+# summarize data with 5/95
+# nfa_ann <- nfa %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="nfa")
+# 
+# rub_ann <- rub %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="rub")
+# 
+# mfa_ann <- mfa %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="mfa")
+# 
+# nfy_ann <- nfy %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="nfy")
+# 
+# mfy_ann <- mfy %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="mfy")
+# 
+# sfy_ann <- sfy %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="sfy")
+# 
+# bear_ann <- bear %>% 
+#   group_by(DOWY) %>% 
+#   summarize(meanAnnQ=mean(flow_cfs, na.rm = T),
+#             q95=quantile(flow_cfs, probs=c(0.95)),
+#             q05=quantile(flow_cfs, probs=c(0.05))) %>% 
+#   mutate(meanAnnQ_cms = cfs_cms(meanAnnQ),
+#          q95_cms = cfs_cms(q95),
+#          q05_cms = cfs_cms(q05),
+#          site="bear")
+# 
+# site_ann<-bind_rows(mfa_ann,rub_ann, nfa_ann, nfy_ann,
+#                     mfy_ann, sfy_ann, bear_ann) %>% 
+#   mutate(regtype=case_when(
+#     site %in% c("mfa") ~ "Hydropeaking",
+#     site %in% c("bear","sfy","mfy","rub") ~ "Bypass",
+#     site %in% c("nfy", "nfa") ~ "Unregulated")
+#   )
+# 
+# table(site_ann$site)
+# site_ann$regtype <- factor(site_ann$regtype, levels = c("Unregulated","Bypass", "Hydropeaking"))
+
+#saveRDS(site_ann, file = "data_output/flows/sites_ann_flow.rds")
+
+```
+
+### 02: Mean Annual Flow Plot
+
+```{r ggplot_ann_flow, eval=T, echo=F}
+
+site_ann <- read_rds(file = "data_output/flows/sites_ann_flow.rds")
+
+site_ann <- filter(site_ann, !site=="rub")
+
+# set up color palette (see here:http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/)
+# The palette with black:
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+# To use for fills, add
+#  scale_fill_manual(values=cbPalette)
+# To use for line and point colors, add
+#  scale_colour_manual(values=cbPalette)
+
+
+#dowy_labs1<-c("Oct","Nov","Dec","Jan", "Feb","Mar", "Mar-15", "Apr-01", "Apr-15", "May-01", "May-15", "Jun-01", "Jun-15", "Jul-01", "Jul-15", "Aug", "Aug-15", "Sep")
+#dowy_breaks<-c(1, 32, 62, 93, 124, 152, 167, 183, 198, 213, 228, 244, 259, 274, 289, 305, 320, 336)
+dowy_labs2<-c("Oct","Nov","Dec","Jan", "Feb","Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep")
+dowy_breaks2<-c(1, 32, 62, 93, 124, 152, 183, 213, 244, 274, 305, 336)
+
+# plot
+(annFlows <- ggplot() +
+  geom_line(data=site_ann, 
+            aes(x=DOWY, y=meanAnnQ_cms,group=site,
+                color=as.factor(regtype)), 
+            lwd=1, show.legend = T) + 
+  scale_color_manual("Regulation Type", 
+                     values = c("Bypass"=cbbPalette[2],
+                                "Hydropeaking"=cbbPalette[7],
+                                "Unregulated"=cbbPalette[3])) +
+  scale_x_continuous(breaks=dowy_breaks2, labels=dowy_labs2) +
+  theme_classic(base_size = 12, base_family = "Helvetica") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, color="black", size=11),
+        legend.key=element_blank(),
+        legend.position=c(0.8,.8),
+        legend.text = element_text(size=11),
+        axis.text.y = element_text(hjust = 1, color="black", size=11)) +
+  labs(y="Mean Annual Discharge (cms)", x="")) 
+
+library(ggtext)
+# create label framework
+df_labs <- 
+  tibble("DOWY" = c(320, 325, 255, 229, 228, 232),
+         "site" = c("MF American", "North Yuba","NF American","South Yuba", "Middle Yuba", "Bear"),
+         "cms" = c(20.5, 4.8, 22.09, 20, 5.5, 1.8))
+
+library(ggrepel)
+annFlows + 
+  geom_text_repel(data=df_labs,
+                  aes(x=DOWY, y=cms, label=site), 
+                  family="Helvetica", 
+                  min.segment.length = 0.5, 
+                  nudge_x = c(0,1,-20, -8,18,2),
+                  nudge_y = c(3,3,0,0,2,2),
+                  fontface="bold",
+                  size=3,
+                  segment.curvature = -0.1,
+                  segment.ncp = 3,
+                  segment.angle = 20,
+                  seed = 42, box.padding = 0.5)
+
+ggsave(filename = "figs/final_figs/fig_02_mean_ann_discharge_labeled.pdf", 
+       width=15.6, height = 10, units="cm", dpi=600, device=cairo_pdf)
+       #width = 9, height=6, units="in", dpi=600, device=cairo_pdf)
+
+```
+
+### 03: Generate Hourly Flows
+
+```{r create_hr_flow, eval=F, echo=F}
+
+# fix MFA_hv to standardize
+# MFA_hv <- MFA_hv %>% 
+#   mutate(site="MFA",
+#          regtype="Hydropeaking") %>% 
+#   select(datetime, flow_cfs, DOY:regtype)
+# 
+# ## Make Hourly dataset for NFA
+# nfa_hv <- NFA_iv %>%
+#   mutate(mon=month(datetime),
+#          hour=hour(datetime),
+#          year=year(datetime)) %>% 
+#   group_by(year, mon, DOY, hour)%>%
+#   dplyr::summarize(
+#     flow_cfs=mean(flow_cfs,na.rm=TRUE)) %>%
+#   mutate(datetime=ymd_hms(strptime(paste0(year,"-", mon,"-", DOY, " ",
+#                                             hour,":00"),format = "%Y-%m-%j %H:%M")),
+#          site="NFA",
+#          regtype="Unregulated") %>%
+#   as.data.frame() %>% 
+#   select(datetime, flow_cfs, site, regtype, -year, -hour, -mon, -DOY)
+#   
+# nfa_hv <- add_WYD(nfa_hv, "datetime") 
+# 
+# ## Make Hourly dataset for RUB
+# rub_hv <- RUB_iv %>%
+#   mutate(mon=month(datetime),
+#          hour=hour(datetime),
+#          year=year(datetime)) %>% 
+#   group_by(year, mon, DOY, hour)%>%
+#   dplyr::summarize(
+#     flow_cfs=mean(flow_cfs,na.rm=TRUE)) %>%
+#   mutate(datetime=ymd_hms(strptime(paste0(year,"-", mon,"-", DOY, " ",
+#                                             hour,":00"),format = "%Y-%m-%j %H:%M")),
+#          site="RUB",
+#          regtype="Bypass") %>%
+#   as.data.frame() %>% 
+#   select(datetime, flow_cfs, site, regtype, -year, -hour, -mon, -DOY)
+#   
+# rub_hv <- add_WYD(rub_hv, "datetime") 
+# 
+# ## Make Hourly dataset for SFY
+# sfy_hv <- SFY_hv %>%
+#   mutate(site="SFY",
+#          regtype="Bypass") %>% 
+#   select(datetime, flow_cfs, DOY:regtype)
+# 
+# # bind all data together:
+# site_hv <- bind_rows(MFA_hv, nfa_hv, rub_hv, sfy_hv)
+
+
+#saveRDS(site_hv, file = "data_output/flows/rub_mfa_nfa_sfy_hv.rds")
+#save(site_hv, file="data_output/flows/rub_mfa_nfa_sfy_hv.rda")
+```
+
+### 03: Hourly Flow Plot: American
+
+```{r hourly_flow_plot, eval=T, echo=F}
+
+#load("data_output/flows/rub_mfa_nfa_hv.rda")
+load("data_output/flows/rub_mfa_nfa_sfy_hv.rda")
+site_hv$regtype <- factor(site_hv$regtype, levels = c("Unregulated","Bypass", "Hydropeaking"))
+
+# filter data from Mar:Jul for a given year
+yr <- 2012
+site_hv <- site_hv %>% filter(month(datetime)>3, month(datetime)<8, WY==yr)
+site_hv <- site_hv %>% filter(!site=="RUB")
+
+# weird value in 2012...is it real? NOPE: 
+# http://cdec.water.ca.gov/jspplot/jspPlotServlet.jsp?sensor_no=7710&end=06%2F10%2F2012+05%3A53&geom=huge&interval=60&cookies=cdec01
+site_hv[which.max(site_hv$flow_cfs),]
+site_hv$flow_cfs[955]<-1200
+site_hv$flow_cfs[954]<-1200
+
+# labeling/colors
+dowy_labs2<-c("Oct","Nov","Dec","Jan", "Feb","Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep")
+dowy_breaks2<-c(1, 32, 62, 93, 124, 152, 183, 213, 244, 274, 305, 336)
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# convert to cms (1 cfs = 0.028316847 cms)
+
+
+# plot
+(hrlyFlows <- ggplot() +
+    geom_line(data=site_hv, 
+              aes(x=datetime, y=flow_cfs*0.028316847,
+                  group=site, color=as.factor(regtype)),
+              lwd=0.7, show.legend = T) + 
+    scale_color_manual("Regulation Type", 
+                       values = c("Unregulated"=cbbPalette[3],
+                                  "Bypass"=cbbPalette[2],
+                                  "Hydropeaking"=cbbPalette[7])) +
+    theme_classic(base_size = 12, 
+                  base_family = "Helvetica") +
+    theme(axis.text.x = element_text(angle = 45, color="black", 
+                                     hjust = 1, size=11),
+          legend.key=element_blank(),
+          legend.position=c(0.8,.8),
+          legend.text = element_text(size=11),
+          axis.text.y = element_text(hjust = 1, size=11, color="black")) +
+    labs(y="Hourly Discharge (cms)", x=""))
+
+ggsave(filename = "figs/final_figs/fig_03_mean_hourly_discharge_combined_wSFY.pdf", 
+       width=15.6, height = 10, units="cm", dpi=600, device=cairo_pdf)
+       #width = 9, height=6, units="in", dpi=600, device=cairo_pdf)
+
+# for pres
+# plot
+# hrlyFlowsPres <- ggplot() +
+#   geom_line(data=site_hv, aes(x=datetime, y=flow_cfs, 
+#                                group=site, color=as.factor(regtype)), #as.factor(site))
+#             lwd=1, show.legend = F) + 
+#   scale_color_manual("Regulation Type", values = c("Unregulated"=cbbPalette[3], "Bypass"=cbbPalette[2], "Hydropeaking"=cbbPalette[7])) +
+#   #ggthemes::scale_color_colorblind("Regulation Type")+
+#   #scale_x_continuous(breaks=dowy_breaks2, labels=dowy_labs2) +
+#   theme_classic(base_size = 14, base_family = "Roboto Condensed") + #ylim(c(0,100))+
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1, size=14),
+#         legend.key=element_blank(),
+#         legend.position=c(0.8,.8),
+#         axis.text.y = element_text(hjust = 1, size=14)) +
+#   labs(y="Hourly Discharge (cfs)", x="") +
+#     facet_grid(regtype~.)
+# hrlyFlowsPres
+# 
+# ggsave(filename = "figs/fig_mean_hourly_discharge_combined_wSFY.png", width = 9, height=6, units="in", dpi=300)
+# resize in Preview: Tools > Adjust Size: 5.7 cm width, 300 px/cm
+```
+
+
+# Fig 04: Seasonality vs Predictability
+
+See script `figure_02_plot_wave_colwell.R`
+
+```{r seasPred, echo=F, eval=T}
+
+knitr::include_graphics(paste0(here::here(),"/figs/fig_02_pre_post_predic_seas_combined_v2.png"))
+
+```
+
+# Fig 05: PCA
+
+The IBS angsd method using all sites, so doesn't necessarily call a single SNP. Looking at the Sierra Sites, excluding Stanislaus, Tuolumne and Feather watersheds. Also excludes SFA and Deer Creek/Clear Creek samples.
+
+```{r sierra_v2_get_data, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra v3: PCA"}
+
+reads <- "100k"
+site <- "sierra_v3"
+# a few other options: sierra_basin_100k (this is only RABO but includes FEA)
+# sierra_100k/50k (this is all sierras)
+# sierra_v2 (this is only minus stan and tuo)
+# sierra_v3 (this is the reg/unreg run minus deer crk, sfa, and tuo/stan)
+
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Filter outliers:
+to_rm <- c(which(annot$SampleID=="RAP-122"), # outlier SFY Spring (166),
+           which(annot$SampleID=="RAP-278"), # outlier Bear Missouri (13)
+           which(grepl("^DEER-|^SFA-",annot$Locality))) # SFA/DEER CK samples
+covar<- covar[-c(to_rm),-c(to_rm)]
+annot <- annot[-c(to_rm),]
+
+# fix the Upper Feather Slate Creek Sample to Yuba:
+slck <- which(annot$SampleID=="RAP1716")
+annot$HU_8_NAME[slck] <- "Upper Yuba"
+annot$HU_8_NAME[which(annot$SampleID=="RAP1716")]
+
+# split out RIVER as separate col:
+annot <- annot %>%
+  separate(Locality, c("River", "Site"), "-", remove = FALSE)
+
+# rename rivers/regtype for groupings: (annot %>% distinct(River))
+annot <- annot %>% 
+  mutate(
+    # River = case_when(River == "DEER" ~ "SFY",
+    #                   TRUE ~ River),
+    regtype=case_when(
+    River %in% c("MFA", "NFMFA") ~ "Hydropeaking",
+    River %in% c("BEAR","RUB", "SFY","MFY") ~ "Bypass",
+    River %in% c("NFA", "NFY") ~ "Unregulated"),
+    RIVER = case_when(
+    River %in% c("MFA", "RUB","NFMFA") ~ "MF American",
+    River %in% c("NFY") ~ "North Yuba",
+    River %in% c("MFY") ~ "Middle Yuba",
+    River %in% c("SFY") ~ "South Yuba",
+    River %in% c("NFA") ~ "NF American",
+    River %in% c("BEAR") ~ "Bear")
+    )
+
+# join the siteID's for labeling purposes
+metadat_sites <- sf::st_read("data/shps/metadat_sites.shp")
+annot <- left_join(annot, metadat_sites[,c(6,10)], by=c("Locality"="Localty"))
+
+annot$River <- factor(annot$River, levels = c("NFA","MFA","RUB","NFMFA","BEAR", "NFY","MFY","SFY"))
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$River)
+PC$RIVER <- factor(annot$RIVER)
+PC$regtype <- factor(annot$regtype)
+PC$siteID <- annot$siteID2
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# reorder
+PC$regtype <- factor(PC$regtype, levels = c("Unregulated","Bypass", "Hydropeaking"))
+PC$RIVER <- factor(PC$RIVER, levels = c("Bear", "NF American","MF American", "North Yuba", "Middle Yuba", "South Yuba"))
+#PC[,284:293] %>% str
+
+```
+
+## Fig 05a: Sierra PCA: ggplot
+
+```{r sierra_v2_pca, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="Sierra v1 static: PCA"}
+# static
+
+library(ggforce)
+library(ggthemes)
+library(ggrepel)
+library(cowplot)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# PLOT
+(pca1 <- ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                                    color=quote(RIVER), shape=quote(regtype),
+                                    text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+    
+    geom_point(size=2.5, alpha=0.9) +
+    #ggforce::geom_mark_circle(aes(group=RIVER), show.legend = F)+
+    theme_bw(base_size = 8, base_family = "Helvetica") +
+    scale_shape_manual("Regulation Type", 
+                       values=c("Unregulated"=16, "Bypass"=15, "Hydropeaking"=17)) +
+    scale_color_colorblind("River") +
+    guides(color = guide_legend(order=2, ncol = 2),
+           shape = guide_legend(order=1)) +
+    theme(legend.text = element_text(size = 6),
+          legend.position = c(0.15,0.85),
+          legend.title = element_text(size= 7, face="bold"),
+          legend.background = element_rect(fill="white"),
+          legend.spacing.y = unit(0.2, "cm"),
+          legend.margin = margin(0.0,0,0,0, unit="cm"),
+          legend.key.size = unit(.80, 'lines')))
+
+# format for half of 1.5 col [4.5"] (5.7 cm or 2.25"), or for 2 col [7"](17.8/2 or 3.5")
+#ggsave(filename = "figs/fig_02a_pca_sierra.png", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02a_pca_sierra.pdf", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02a_pca_sierra.svg", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+
+```
+
+## Fig 05b: PCA for NFA
+
+```{r nfa_get_data, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="nfa: PCA"}
+
+reads <- "100k"
+site <- "nfa"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# split out RIVER as separate col:
+annot <- annot %>%
+  separate(Locality, c("River", "Site"), "-", remove = FALSE)
+
+# rename rivers/regtype for groupings: (annot %>% distinct(River))
+annot <- annot %>% 
+  mutate(regtype=case_when(
+    River %in% c("MFA", "RUB","NFMFA") ~ "Hydropeaking",
+    River %in% c("BEAR","SFY","MFY") ~ "Bypass",
+    River %in% c("NFY", "NFA") ~ "Unregulated"),
+    RIVER = case_when(
+    River %in% c("MFA", "RUB","NFMFA") ~ "MF American",
+    River %in% c("NFY") ~ "North Yuba",
+    River %in% c("MFY") ~ "Middle Yuba",
+    River %in% c("SFY") ~ "South Yuba",
+    River %in% c("NFA") ~ "NF American",
+    River %in% c("BEAR") ~ "Bear")
+    )
+
+# add Site IDs
+metadat_sites <- st_read("data/shps/metadat_sites_v2.shp")
+annot <- left_join(annot, metadat_sites[,c(6,11)], by=c("Locality"="Localty"))
+
+annot$River <- factor(annot$River, levels = c("NFA","MFA","RUB","NFMFA","BEAR", "NFY","MFY","SFY"))
+
+# fix the missing sites for EUCHUS and NFNFA
+annot <- annot %>% 
+  mutate(siteID3 = case_when(
+    Locality %in% c("NFA-EUCHUS", "NFA-NFNFA") ~ 14,
+    TRUE ~ siteID3)
+  )
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$River)
+PC$RIVER <- factor(annot$RIVER)
+PC$regtype <- factor(annot$regtype)
+PC$siteID <- annot$siteID3
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# reorder
+PC$regtype <- factor(PC$regtype, levels = c("Unregulated","Bypass", "Hydropeaking"))
+PC$RIVER <- factor(PC$RIVER, levels = c("Bear", "NF American","MF American", "North Yuba", "Middle Yuba", "South Yuba"))
+
+```
+
+
+## Fig 05b: NFA PCA: ggplot
+
+```{r nfa_pca, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="NFA v1 static: PCA"}
+
+library(paletteer)
+library(scico)
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+
+(pca2 <- ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                                    color=quote(as.factor(siteID)),
+                                    shape=quote(regtype),
+                                    text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+    
+    geom_point(size=3) +
+    geom_point(size=3, pch=21, fill=NA, color="gray20", alpha=0.2)+
+    #ggforce::geom_mark_circle(aes(group=RIVER), show.legend = F)+
+    theme_bw(base_size = 8, base_family = "Helvetica") +
+    scale_shape_manual("Regulation Type", 
+                       values=c("Unregulated"=16, "Bypass"=15, "Hydropeaking"=17)) +
+    # diverging palette: 
+    scale_colour_brewer("Site", palette = "Paired") +
+    #scale_color_viridis_d("Site", option="B")+
+    guides(shape = guide_legend(order=1), color = guide_legend(ncol = 2, order=2)) +
+    theme(legend.text = element_text(size = 6), 
+          legend.background = element_rect(fill="white", color="white"),
+          legend.spacing.y = unit(0.1, "cm"),
+          legend.position = c(0.8, 0.2),
+          legend.margin = margin(0.0,0,0,0, unit="cm"),
+          legend.key.size = unit(.5, 'cm'),
+          legend.title = element_text(size= 7, face="bold")) +
+    annotate("text", x=.25, y=.17, label="NF American", fontface="bold", size=3.5))
+
+# format for half of 1.5 col [4.5"] (5.7 cm or 2.25"), or for 2 col [7"](17.8/2 or 3.5")
+#ggsave(filename = "figs/fig_02b_pca_nfa.png", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02b_pca_nfa.pdf", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02b_pca_nfa.svg", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+
+#ggsave(filename = "figs/fig_02b_pca_nfa_thresh_vir.png", width = 8, height = 6, units = "in", dpi=300)
+
+```
+
+## Fig 05cd: PCA for MFA
+
+```{r mfa_get_data, warning=FALSE, echo=FALSE, eval=T, message=FALSE}
+
+reads <- "100k"
+site <- "mfa"
+
+# read covar file
+covar_path <- paste0("./data_output/angsd/rabo_",site, "_100k_thresh.covMat")
+covar <- read.table(covar_path, stringsAsFactors = F)
+
+# Read annot file
+annot <- read.table(paste0("data_output/bamlists/bamlist_mrg_RABO_",site,"_",reads,
+                           "_clst"),stringsAsFactors = F, header = TRUE)
+
+# combine with metadata
+suppressMessages(metadat<- read_csv("data_output/rapture06_metadata_revised.csv"))
+
+annot <- inner_join(metadat, annot, by=c("SampleID"="IID")) %>% 
+  arrange(Seq) %>% 
+  distinct(SampleID, .keep_all = T)
+
+# Filter outliers:
+to_rm <- c(which(grepl("^SFA-|^MFA-US-R$",annot$Locality))) # SFA/MFA-US samples
+covar<- covar[-c(to_rm),-c(to_rm)]
+annot <- annot[-c(to_rm),]
+
+# split out RIVER as separate col:
+annot <- annot %>%
+  separate(Locality, c("River", "Site"), "-", remove = FALSE)
+
+# rename rivers/regtype for groupings: (annot %>% distinct(River))
+annot <- annot %>% 
+  mutate(regtype=case_when(
+    River %in% c("MFA", "NFMFA") ~ "Hydropeaking",
+    River %in% c("RUB") ~ "Bypass"),
+    #River %in% c("NFY", "NFA") ~ "Unregulated"),
+    RIVER = case_when(
+    River %in% c("MFA", "RUB","NFMFA") ~ "MF American")
+    )
+
+# add Site IDs
+metadat_sites <- st_read("data/shps/metadat_sites_v2.shp")
+annot <- left_join(annot, metadat_sites[,c(6,11)], by=c("Locality"="Localty"))
+
+annot$River <- factor(annot$River, levels = c("NFA","MFA","RUB","NFMFA","BEAR", "NFY","MFY","SFY"))
+
+# Eigenvalues
+eig <- eigen(covar, symm=TRUE)
+eig$val <- eig$val/sum(eig$val)
+PC <- as.data.frame(eig$vectors)
+colnames(PC) <- gsub("V", "PC", colnames(PC))
+PC$River <- factor(annot$River)
+PC$RIVER <- factor(annot$RIVER)
+PC$regtype <- factor(annot$regtype)
+PC$siteID <- annot$siteID3
+PC$Pop <- factor(annot$HU_12_NAME) # CLUSTER
+PC$ID <- factor(annot$SampleID)
+PC$HU_12_NAME <- factor(annot$HU_12_NAME)
+PC$HU_10_NAME <- factor(annot$HU_10_NAME)
+PC$HU_8_NAME <- factor(annot$HU_8_NAME)
+
+# reorder
+PC$regtype <- factor(PC$regtype, levels = c("Unregulated","Bypass", "Hydropeaking"))
+PC$RIVER <- factor(PC$RIVER, levels = c("Bear", "NF American","MF American", "North Yuba", "Middle Yuba", "South Yuba"))
+
+```
+
+## Fig 5cd: MFA PCA: ggplot
+
+```{r mfa_pca, warning=FALSE, echo=FALSE, eval=T, message=FALSE, fig.cap="MFA 2cd: PCA"}
+
+# PC's:
+pc1 <- 1
+pc2 <- 2
+
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# plot
+(pca3 <- ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                                    color=quote(as.factor(siteID)),
+                                    shape=quote(regtype),
+                                    text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+    
+    geom_point(size=3) +
+    theme_bw(base_size = 8, base_family = "Helvetica") +
+    scale_color_viridis_d("Site", option="D") + 
+    scale_shape_manual("Regulation Type", 
+                       values=c("Unregulated"=16, "Bypass"=15, "Hydropeaking"=17)) +
+    guides(shape = FALSE, color = guide_legend(order=2)) +
+    theme(legend.text = element_text(size = 6), 
+          legend.background = element_rect(fill="white"),
+          legend.spacing.y = unit(0.1, "cm"),
+          legend.position = c(0.1, 0.8),
+          legend.margin = margin(0.0,0,0,0, unit="cm"),
+          legend.key.size = unit(.90, 'lines'),
+          legend.title = element_text(size= 7, face="bold")) +
+    annotate("text", x=-.07, y=.35, label="MF American", fontface="bold", size=3.5))
+
+# format for half of 1.5 col [4.5"] (5.7 cm or 2.25"), or for 2 col [7"](17.8/2 or 3.5")
+#ggsave(filename = "figs/fig_02c_pca_mfa_1v2.png", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02c_pca_mfa_1v2.pdf", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02c_pca_mfa_1v2.svg", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+
+#ggsave(filename = "figs/fig_02c_pca_mfa_thresh_vir.png", width = 8, height = 6, units = "in", dpi=300)
+#ggsave(filename = "figs/fig_02c_pca_mfa_thresh_vir_wsiteID.png", width = 8, height = 6, units = "in", dpi=300)
+
+# PC's:
+pc1 <- 1
+pc2 <- 3
+
+# Title (and % explained)
+title <- paste("PC",pc1," (",signif(eig$val[pc1], digits=3)*100,"%)"," / PC", pc2," (",signif(eig$val[pc2], digits=3)*100,"%)", sep="",collapse="")
+
+# plot
+(pca4 <- ggplot(data=PC, aes_string(x=paste0("PC",pc1), y=paste0("PC",pc2),
+                                    color=quote(as.factor(siteID)), shape=quote(regtype),
+                                    text=quote((paste0("ID: ", ID, " <br> River: ", River))))) +
+    
+    geom_point(size=3, show.legend = T) +
+    #ggforce::geom_mark_circle(aes(group=RIVER), show.legend = F)+
+    theme_bw(base_size = 8, base_family = "Helvetica") +
+    scale_shape_manual("Regulation Type", 
+                       values=c("Unregulated"=16, "Bypass"=15, "Hydropeaking"=17)) +
+    scale_color_viridis_d("Site", option = "D") +
+    guides(shape = FALSE, color = guide_legend(order=2)) +
+    theme(legend.text = element_text(size = 6), 
+          legend.position = c(0.1, 0.2), 
+          legend.background = element_rect(fill="white"),
+          legend.spacing.y = unit(0.1, "cm"),
+          legend.margin = margin(.1,.5,.5,.5, unit="cm"),
+          legend.key.size = unit(.90, 'lines'),
+          legend.title = element_text(size= 7, face="bold")) +
+    annotate("text", x=-.07, y=.25, label="MF American", fontface="bold", size=3.5))
+
+# format for half of 1.5 col [4.5"] (5.7 cm or 2.25"), or for 2 col [7"](17.8/2 or 3.5")
+#ggsave(filename = "figs/fig_02d_pca_mfa_1v3.png", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02d_pca_mfa_1v3.pdf", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+#ggsave(filename = "figs/fig_02d_pca_mfa_1v3.svg", width = 2.25, height = 1.65, units ="in", dpi=600, scale=1.5)
+
+#ggsave(filename = "figs/fig_02d_pca_mfa_thresh_1v3_vir.png", width = 8, height = 6, units = "in", dpi=300)
+#ggsave(filename = "figs/fig_02d_pca_mfa_thresh_1v3_vir_wsiteID.png", width = 8, height = 6, units = "in", dpi=300)
+
+```
+
+## Fig 05a-d: Combine PCAs
+```{r combinePCAs, echo=F, eval=T}
+
+library(cowplot)
+
+plot2by2 <- plot_grid(pca1, pca2, pca3, pca4,
+                      labels=c("A", "B", "C", "D"), ncol = 2, axis = "l", align = "v", label_size = 12)
+
+# plot
+plot2by2
+
+ggsave(plot=plot2by2, filename = "figs/final_figs/fig_05_pca_combined_v4.pdf", 
+       width=15.6, height = 16, units="cm", scale=1, dpi=600, device=cairo_pdf)
+
+# save_plot("figs/final_figs/fig_05_pca_combined_v3.pdf", plot2by2,
+#           ncol = 2, # we're saving a grid plot of 2 columns
+#           nrow = 2, # and 2 rows
+#           base_height= 12,
+#           base_width = 15.6, # for each subplot
+#           units="cm",
+#           #base_aspect_ratio = 1.1,
+#           dpi = 600,
+#           device=cairo_pdf
+#         )
+
+```
+
+# Fig 06: Mean Fst by RegType
+
+Now we plot mean F<sub>ST</sub> vs.  mean Distance (km) across all sites.
+
+## Fig 06a: Plot Mean F<sub>ST</sub> vs Mean Dist (km)
+
+See `script/figure_04a_plot_fst_matrix.R`
+
+```{r OLDfig4a, echo=F, eval=F}
+
+# fst_dist_pw <- read_csv(file = paste0(here::here(), "/data_output/fst_dist_all_pairwise_combos_revised.csv")) %>% 
+#   filter(!sitepairID %in% c(60, 62)) %>% 
+#   mutate("Site_A"=case_when(
+#     grepl("mfy_oregck_flt", Site_A) ~ "mfy_oregck",
+#     TRUE ~ Site_A
+#   )) %>% 
+#   # renumber
+#   mutate(sitepairID = 1:nrow(.))
+# 
+# # read in table 1 and add labels
+# sites <- read_csv("data_output/Table_01_samplesites_samples.csv") %>% 
+#   mutate(SiteName = tolower(SiteName))
+# 
+# fst_dist_pw <- left_join(fst_dist_pw, sites[,c(1,2)], by=c("Site_A"="SiteName")) %>% 
+#   dplyr::rename(SiteID_A = SiteID) %>% 
+#   left_join(., sites[,c(1,2)], by=c("Site_B"="SiteName")) %>% 
+#   dplyr::rename(SiteID_B = SiteID)
+# 
+# # save out table:
+# write_csv(fst_dist_pw, path = "manuscript/supplemental/S4_fst_dist_all_pairwise_combos_revised_v2.csv")
+
+fst_dist_pw <- read_csv(file = paste0(here::here(), "/data_output/fst_dist_all_pairwise_combos_revised_v2.csv"))
+
+# calc centroids
+# reg_centroids <- aggregate(cbind(River_distance_km, scaled_fst) ~ regType,fst_dist_pw, mean)
+# f <- function(z) sd(z) / sqrt(length(z)) # function to calculate std.err
+# se <- aggregate(cbind(se.x=River_distance_km,se.y=scaled_fst) ~ regType, fst_dist_pw, f)
+# reg_centroids <- merge(reg_centroids, se, by="regType") # add SE column
+# save(reg_centroids, file = "data_output/fst_centroids_all_pairwise_combos.rda")
+
+load("data_output/fst_centroids_all_pairwise_combos.rda")
+reg_centroids
+
+
+# fix levels
+fst_dist_pw$regType <- factor(fst_dist_pw$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+reg_centroids$regType <- factor(reg_centroids$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# print version
+(fig4A <- ggplot() + 
+    stat_smooth(data=fst_dist_pw,
+                aes(y=scaled_fst, x=River_distance_km, color=regType, group=regType),
+                method = "glm", show.legend = T, lty=2, lwd=1,
+                alpha=0.2, level = 0.89, se = TRUE) +
+    geom_point(data=fst_dist_pw, aes(y=scaled_fst, x=River_distance_km,
+                                     fill=regType, group=regType, shape=regType),
+               show.legend = T, size=4, alpha=0.9) +
+    scale_fill_manual("Flow Regime", 
+                      values = c("Unregulated"=cbbPalette[3], "Bypass"=cbbPalette[2], 
+                                 "Hydropeaking"=cbbPalette[7])) +
+    #ylim(0,0.35)+
+    scale_shape_manual("Flow Regime", values=c(21,22,23))+
+    scale_color_manual("Flow Regime", 
+                       values = c("Unregulated"=cbbPalette[3], "Bypass"=cbbPalette[2], 
+                                  "Hydropeaking"=cbbPalette[7])) +
+    geom_point(data=reg_centroids, aes(y=scaled_fst, x=River_distance_km,
+                                       group=regType, shape=regType, fill=regType),
+               stroke=1.5, color="gray10",
+               show.legend = F, size=7, alpha=0.9)+
+    
+    # add labels
+    geom_text_repel(data=fst_dist_pw,
+                     aes(y=scaled_fst, x=River_distance_km, label=sitepairID, group=regType),
+                     alpha=0.8, size=2.8, point.padding = 0.5, min.segment.length = 0.5) +
+    theme_bw(base_family = "Helvetica", base_size = 12) +
+    theme(legend.position = c(0.85, 0.18)) +
+    labs(y=expression(paste("Scaled F" ["ST"])),
+      x="River Distance (km)") #+
+  #facet_grid(.~regType)
+)
+
+ggsave(filename = "figs/fig_04a_rev_fst_vs_dist_by_flowtype_centroid_reg_labeled.pdf", width = 8.2, height= 6, units = "in", dpi = 300, device=cairo_pdf)
+#ggsave(filename = "figs/fig_04a_rev_fst_vs_dist_by_flowtype_centroid_reg.png", width = 8, height= 6, units = "in", dpi = 300)
+
+```
+
+```{r fig6aRev}
+
+fst_dist_pw <- read_csv(file = paste0(here::here(), "/data_output/fst_dist_all_pairwise_combos_revised_v2.csv"))
+
+load("data_output/fst_centroids_all_pairwise_combos.rda")
+
+# fix levels
+fst_dist_pw$regType <- factor(fst_dist_pw$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+
+reg_centroids$regType <- factor(reg_centroids$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+
+# color palette
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# collapse the factor levels:
+fst_dist_pw$regTypeCombined <- fct_collapse(fst_dist_pw$regType,
+                                            Unregulated="Unregulated",
+                                            Altered=c("Bypass", "Hydropeaking"))
+
+# collapse the factor levels:
+reg_centroids$regTypeCombined <- fct_collapse(reg_centroids$regType,
+                                            Unregulated="Unregulated",
+                                            Altered=c("Bypass", "Hydropeaking"))
+
+# plot (no legend)
+(fig6A <- ggplot() + 
+    stat_smooth(data=fst_dist_pw,
+                aes(y=scaled_fst, x=River_distance_km, color=regTypeCombined, group=regTypeCombined),
+                method = "glm", show.legend = F, lty=2, lwd=1,
+                alpha=0.2, level = 0.89, se = TRUE) +
+    geom_point(data=fst_dist_pw, aes(y=scaled_fst, x=River_distance_km,
+                                     fill=regTypeCombined, group=regTypeCombined, shape=regType),
+               show.legend = F, size=4, alpha=0.9) +
+    scale_fill_manual("Flow Regime", values = c("Unregulated"=cbbPalette[3],
+                                                "Altered"="black")) +
+    #ylim(0,0.35)+
+    scale_shape_manual("Flow Regime", values=c(21,22,23))+
+    scale_color_manual("Flow Regime", 
+                       values = c("Unregulated"=cbbPalette[3],
+                                  "Altered"="black")) +
+    geom_point(data=reg_centroids, aes(y=scaled_fst, x=River_distance_km,
+                                       group=regType, shape=regType, fill=regTypeCombined),
+               stroke=1.5, color="gray10",
+               show.legend = F, size=7, alpha=0.9)+
+    
+    # add labels
+    geom_text_repel(data=fst_dist_pw,
+                     aes(y=scaled_fst, x=River_distance_km, label=sitepairID),
+                     alpha=0.8, size=2.8, point.padding = 0.5, min.segment.length = 0.5) +
+    theme_bw(base_family = "Helvetica", base_size = 12) +
+    theme(legend.position = c(0.85, 0.18)) +
+    labs(y=expression(paste("Scaled F" ["ST"])),
+      x="River Distance (km)") #+
+  #facet_grid(.~regType)
+)
+
+ggsave(filename = "figs/fig_06a_rev_fst_vs_dist_by_alt_centroid_labeled.pdf", width =20, height=15.6 , units = "cm", dpi = 600, device=cairo_pdf)
+
+```
+
+
+```{r, fst_plot, eval=T, echo=F}
+
+#load(paste0(here::here(),"/figs/fig_04a_fst_plot_unfaceted.rda"))
+knitr::include_graphics(paste0(here::here(), "/figs/fig_04a_rev_fst_vs_dist_by_flowtype_centroid.png"))
+```
+
+# Fig 06b: BRT Fst modeling output
+
+```{r fig6b, echo=F, eval=T}
+
+load("data_output/brt_simple_3b_fst_regtype.rda")
+relvars_ri$var <- reorder(relvars_ri$var, relvars_ri$rel.inf)
+#relvars_ri$var
+ri_labels <- c("Flow Regime", "River Distance (km)",
+               "Diversity \u0394\u03b8", "Elev. (m)", "Drainage Area (km<sup>2</sup>)", 
+               "No. Samples", "Stream Order")
+
+# ri_names <- expression("Regulation Type", "Mean Distance (km)", paste("Diversity ", 
+#     theta[Delta]), "Elevation (m)", paste("Drainage Area (km"^"2)"), "No. Samples", 
+#     "Stream Order")
+
+# standard version
+#png(filename = "figs/fig_03b_relinf_brt_simple_v2_notitle.png", width = 3.42, height= 2.7, units = "in", res = 600)
+# par(mar=c(5,7.9,3,1), las=2)
+# barplot(rev(relvars_ri$rel.inf), 
+#         names.arg = rev(ri_names), col=rev(gray.colors(22)), 
+#         horiz = TRUE, angle = 30, xlab = "Relative influence",
+#         cex.names = 1, family="Helvetica")
+# title(expression("Relative Influence of Variables on F"["ST"]), family="Roboto Condensed")
+#dev.off()
+
+## ggplot version
+(fig6B <- ggplot() + 
+    geom_col(data=relvars_ri, aes(y=rel.inf, x=var)) + 
+    coord_flip() +
+    theme_classic(base_family="Helvetica", base_size = 12) +
+    scale_x_discrete(name="", labels=rev(ri_labels)) +
+    labs(y=expression("Relative Influence of Variables on F"["ST"])) +
+    # annotate("text", y=6, x=1, label=ri_labels[7], color="black", fontface=1) +
+    # annotate("text", y=7, x=2, label=ri_labels[6], color="black", fontface=1) +
+    # annotate("text", y=12, x=3, label=expression("Drainage Area (km" ^ "2) "), color="black", fontface=2) +
+    # annotate("text", y=12, x=3, label=expression("Drainage Area (km" ^ "2) "), color="black", fontface=2) +
+    theme(
+      axis.text.y = ggtext::element_markdown(
+        color = "black", size = 11, halign = TRUE, valign = T, align_heights = T),
+      #axis.text.y= element_blank(),
+      axis.ticks.y = element_blank())) 
+
+ggsave(filename = "figs/fig_06b_relinf_brt_simple_rev.pdf", width = 20, height= 15.6, units = "cm", dpi = 600, scale=1.3, device=cairo_pdf)
+# ggsave(filename = "figs/fig_03b_relinf_brt_simple_notitle.svg", width = 3.42, height= 2.7, units = "in", dpi = 900, scale=1.3)
+# ggsave(filename = "figs/fig_03b_relinf_brt_simple_notitle.pdf", width = 3.42, height = 2.7, units = "in", dpi = 900, scale=1.3)
+```
+
+# Fig 06ab: bind together
+
+```{r combine4ab, eval=T, echo=F}
+
+library(cowplot)
+
+plot6ab <- plot_grid(fig6A, fig6B,
+                      labels=c("A", "B"), ncol = 1, rel_heights = c(1, 0.7), label_size = 12)
+
+plot6ab
+
+save_plot(filename="figs/final_figs/fig_06ab_fst_brt_cowplot_rev.pdf", plot=plot6ab,
+          ncol = 1, # we're saving a grid plot of 2 columns
+          nrow = 2, # and 2 rows
+          base_width = 7, units="in", 
+          dpi=600, device=cairo_pdf)
+
+# for disseration
+# save_plot("figs/fig_04ab_fst_brt_cowplot_for_phd.pdf", plot4ab,
+#           ncol = 1, # we're saving a grid plot of 2 columns
+#           nrow = 2, # and 2 rows
+#           base_width = 6)
+
+
+
+```
+
+# Fig 07a: Geom point plot of $\theta_\Delta$ by site
+
+## The data
+
+```{r thetadata, eval=F, echo=F}
+
+input <- "theta_gw2"
+input.file <- paste("data_output/thetas/",input, sep = "")
+
+dat <- read_delim(input.file, col_names = c("ID", "Tw", "Tp", "Tj","nsites"),skip = 1, delim = " ")
+
+# add the river/site
+dat$river<- stringi::stri_extract(dat$ID, regex='[^_]*')
+
+# filter to single subsample:
+dat100 <- filter(dat, grepl(pattern = "100k", ID), grepl('nfa|mfa|rub|sfa|nfmfa|nfy|sfy|mfy|bear|tuo', ID),
+                 !grepl('^sfy_scotch', ID)) %>% arrange(ID)
+dat100$ID <- gsub("_100k_gw_thetasWin.gz.pestPG", replacement = "", x = dat100$ID)
+
+# remove samples:
+dat100 <- dat100 %>% filter(!ID %in% c("mfy_oregck", "sfy_mcki","nfy_slate_onion", "nfa_upper", "tuo_clavey", "sfa_cami"))
+
+# add regulation
+dat100$reg <- ifelse(dat100$river %in% c("bear","deer","mfa","sfa", "mfy","rub","sfy"), "REG","UNREG")
+
+## Add Regulation TYPE using mutate case_when
+dat100 <- dat100 %>% mutate(
+  regType = case_when(
+    grepl("^nfa|nfy$|^nfmfa", x = ID) ~ "Unregulated",
+    grepl("^mfa|tuo", x = ID) ~ "Hydropeaking",
+    #grepl("^mfa|^nfmfa|tuo", x = ID) ~ "Hydropeaking",
+    grepl("^rub|bear|mfy|sfy|nfy_slate_cgrav|sfa", x = ID) ~ "Bypass"
+    #ID %in% c("bear", "mfy", "sfy") ~ "Bypass"
+  )
+)
+
+dat100$regType <- factor(dat100$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+dat100$ID <- factor(dat100$ID)
+
+# add adjusted: Taj (Tp) - Watt (Tw) / ((Tp + Tw)/2)
+dat100 <- dat100 %>% 
+  mutate(Tadj = (Tp-Tw)/((Tp+Tw)/2))
+
+# calc diff between these
+dat100$Tdiff_s <- as.vector(scale((dat100$Tp - dat100$Tw), center = T, scale = T))
+dat100$Tdiff <- dat100$Tp - dat100$Tw
+
+# join with siteID
+metadat_sites <- sf::st_read("data/shps/metadat_sites_v2.shp", quiet=T)
+metadat_sites$locality <- tolower(metadat_sites$Localty)
+metadat_sites$locality <- gsub("-", "_", metadat_sites$locality)
+metadat_sites <- metadat_sites %>% 
+  mutate(locality = case_when(
+    locality == "rub_lc_us" ~ "rub_lcus",
+    locality == "nfa_euchds" ~ "nfa_euch",
+    locality == "mfy_oregck" ~ "mfy_oregck_flt",
+    TRUE ~ locality)
+  )
+
+# join
+dat100 <- metadat_sites %>% st_drop_geometry() %>% select("locality", "siteID3") %>% 
+  left_join(dat100, ., by=c("ID"="locality"))
+
+# reorder, relevel factors
+dat100$ID <- reorder(dat100$ID, dat100$Tdiff)
+
+table(dat100$regType)
+save(dat100, file = "data_output/theta_df100_ids_factored.rda")
+
+```
+
+## Fig 07a 
+
+```{r fig05atdiff_bysite_plot, eval=T, echo=F}
+
+load("data_output/theta_df100_ids_factored.rda")
+dat100$regType <- factor(dat100$regType, levels = c("Unregulated","Bypass", "Hydropeaking"))
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# add adjusted: Taj (Tp) - Watt (Tw) / ((Tp + Tw)/2)
+
+# theta plot
+(site_box <- ggplot(data=dat100, aes(y = ID, x = Tadj)) + 
+    theme_bw(base_size = 10, base_family = "Helvetica") +
+    
+    geom_vline(xintercept = 0, col="gray", lty=2, size=1.5) + ylab("") +
+    # the data
+    geom_point(aes(fill=regType), stat="identity", 
+               pch=21, size = 4, show.legend = F) +
+    scale_fill_manual("Regulation Type", values = c("Unregulated"=cbbPalette[3], "Bypass"=cbbPalette[2], "Hydropeaking"=cbbPalette[7]))+
+    ggrepel::geom_text_repel(data=dat100, 
+                             aes(y=ID, x=Tadj, label=siteID3),
+                             point.padding = 0.25, 
+                             box.padding = 0.4,
+                             size=3.5, fontface="bold")+
+    theme(axis.text.y=element_blank(),
+          axis.ticks.y=element_blank())+
+    xlab(label=expression(paste("Scaled ", Delta, theta))) +
+    ylab("Site Number") +
+    facet_grid(regType ~ ., scales="free_y"))
+
+
+ggsave(filename = "figs/fig_07a_theta_points_bysite_facet_adj.pdf", width = 6, height = 5, units = "in", dpi = 300, device=cairo_pdf, scale=1.4)
+
+```
+
+## Fig 07b: Boxplot of $\theta_\Delta$
+
+```{r tdiff_boxplot}
+load("data_output/theta_df100_ids_factored.rda")
+library(ggsignif)
+
+# summarize
+library(dplyr)
+group_by(dat100, regType) %>%
+  summarise(
+    count = n(),
+    mean = mean(Tadj, na.rm = TRUE),
+    sd = sd(Tdiff, na.rm = TRUE),
+    median = median(Tdiff, na.rm = TRUE),
+    IQR = IQR(Tdiff, na.rm = TRUE)
+  )
+
+# stats Kruskal wallis rank sum test and ggpubr (http://www.sthda.com/english/wiki/kruskal-wallis-test-in-r)
+#kruskal.test(Tadj ~ regType, data = dat100)
+#Kruskal-Wallis chi-squared = 10.698, df = 2, p-value = 0.004754
+
+# pairwise wilcox test:
+#pairwise.wilcox.test(dat100$Tadj, dat100$regType, p.adjust.method = "BH")
+#pairwise.wilcox.test(dat100$Tadj, dat100$regType, p.adjust.method = "bonferroni")
+
+# reorder for flip
+dat100$regType <- factor(dat100$regType, levels = c("Hydropeaking","Bypass", "Unregulated"))
+
+# collapse the factor levels:
+dat100$regTypeCombined <- fct_collapse(dat100$regType,
+                                            Unregulated="Unregulated",
+                                            Altered=c("Bypass", "Hydropeaking"))
+
+# color palette
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# theta plot w/ wilcox test of signif
+(group_box <- ggplot() + 
+    theme_bw(base_size = 10, base_family = "Helvetica") +
+    geom_hline(yintercept = 0, col="gray", lty=2, size=1.5) +
+    #ylim(-.0009,0.00055)+
+    geom_boxplot(data=dat100, 
+                 aes(y=Tadj, x=regTypeCombined, fill=regTypeCombined), show.legend = F) +
+    scale_fill_manual("Regulation", 
+                      values = c("Unregulated"=cbbPalette[3],
+                                 "Altered"="black"),
+                      guide=guide_legend(reverse=TRUE)) +
+    labs(y = expression(paste("Scaled ", Delta, theta)), 
+         x="") +
+    theme(legend.position = c(0.2, 0.25), 
+          axis.text.y=element_blank(),
+          axis.ticks.y = element_blank()) + 
+    coord_flip() +
+    annotate("text", size=4.5, label="Unregulated", x="Unregulated", y=-0.07, fontface="bold") +
+    annotate("text", size=4.5, label="Altered", x="Altered", y=-0.07, fontface="bold") +
+    geom_signif(data=dat100, aes(y=Tadj, x=regTypeCombined), comparisons = list(c("Unregulated", "Altered")), map_signif_level=TRUE))
+
+
+#ggsave(filename = "figs/fig_05b_theta_boxplot_regtype_signif_rev.png", width = 3.42, height = 3, units = "in", dpi = 600)
+#ggsave(filename = "figs/fig_05b_theta_boxplot_regtype_signif_rev.pdf", width = 3.42, height = 3, units = "in", dpi = 300)
+
+```
+
+## Fig 07ab combined
+
+```{r combinefig7ab}
+
+library(cowplot) 
+
+# plot
+(plot2 <- plot_grid(site_box, group_box, label_size = 12,
+                    labels=c("A", "B"), ncol = 1, 
+                    rel_heights = c(1, 0.7)))
+
+# Works
+save_plot("figs/fig_07ab_theta_combined.pdf", plot2,
+          nrow = 2, # and 2 rows
+          #base_height = 2.8,
+          base_width = 7, units="in", 
+          dpi=600, device=cairo_pdf)#,
+          #base_aspect_ratio=1.1)
+
+
+# with legend
+# plot(legend)
+# 
+# 
+# # alternate 2!! THIS WORKS
+# (group_box_annot <- ggdraw(plot_grid(site_box, group_box, ncol=1, labels=c("A", "B"))) + 
+#     draw_image("figs/fig_theta_legend.png", width = 0.2, height = 0.16, x=0.06, y=0.1))
+
+# save_plot("figs/fig_05_theta_combined_annot.png", group_box_annot,
+#           nrow = 2, # and 2 rows
+#           # each individual subplot should have an aspect ratio of 1.3
+#           base_aspect_ratio = 1.5, dpi = 300
+#           )
+ 
+
+
+```
+
